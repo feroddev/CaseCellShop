@@ -1,34 +1,43 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createCheckoutAttempt,
   getOrderWithKey,
-  listProducts,
   type OrderStatus,
-  type Product,
 } from "@/lib/api";
+import { useProducts } from "@/hooks/use-products";
 import {
   clearAttempt,
   getAttemptForPayload,
   getLatestAttempt,
   persistAttempt,
 } from "@/lib/idempotency";
+import { productKeys } from "@/lib/query-keys";
 import { toHumanMessage } from "@/lib/ui-errors";
 
 type UiState =
   | { kind: "idle" }
-  | { kind: "loadingProducts" }
   | { kind: "submitting" }
   | { kind: "polling"; orderId: string }
   | { kind: "success"; orderId: string }
   | { kind: "error"; error: unknown; canRetry: boolean; orderId?: string };
 
 export default function Home() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const queryClient = useQueryClient();
+  const {
+    data: products = [],
+    isPending: isLoadingProducts,
+    isFetching: isRefreshingProducts,
+    isError: isProductsError,
+    error: productsError,
+    refetch: refetchProducts,
+  } = useProducts();
+
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
-  const [ui, setUi] = useState<UiState>({ kind: "loadingProducts" });
+  const [ui, setUi] = useState<UiState>({ kind: "idle" });
   const [orderStatus, setOrderStatus] = useState<OrderStatus | null>(null);
 
   const pollAbortRef = useRef<AbortController | null>(null);
@@ -39,25 +48,14 @@ export default function Home() {
   );
 
   useEffect(() => {
-    let cancelled = false;
-    setUi({ kind: "loadingProducts" });
+    if (products.length > 0) {
+      setSelectedProductId((prev) => prev || products[0]!.id);
+    }
+  }, [products]);
 
-    listProducts()
-      .then((data) => {
-        if (cancelled) return;
-        setProducts(data);
-        if (data.length > 0) setSelectedProductId((prev) => prev || data[0]!.id);
-        setUi({ kind: "idle" });
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setUi({ kind: "error", error: e, canRetry: true });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  async function refreshProductStock() {
+    await queryClient.invalidateQueries({ queryKey: productKeys.all });
+  }
 
   async function handleCheckout() {
     if (!selectedProductId) return;
@@ -65,7 +63,6 @@ export default function Home() {
     setOrderStatus(null);
     setUi({ kind: "submitting" });
 
-    // Critical: only reuse an idempotencyKey for the same payload (productId + quantity).
     const previous = getAttemptForPayload({
       productId: selectedProductId,
       quantity,
@@ -119,6 +116,7 @@ export default function Home() {
       if (status.status === "CONFIRMED") {
         clearAttempt();
         setUi({ kind: "success", orderId });
+        await refreshProductStock();
         return;
       }
 
@@ -147,16 +145,20 @@ export default function Home() {
   }
 
   const disableSubmit =
-    ui.kind === "loadingProducts" ||
+    isLoadingProducts ||
     ui.kind === "submitting" ||
     ui.kind === "polling";
 
-  const message =
+  const checkoutMessage =
     ui.kind === "error"
       ? toHumanMessage(ui.error)
       : ui.kind === "success"
         ? { title: "Compra confirmada", description: `Pedido: ${ui.orderId}` }
         : null;
+
+  const productsMessage = isProductsError
+    ? toHumanMessage(productsError)
+    : null;
 
   return (
     <div className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
@@ -173,10 +175,30 @@ export default function Home() {
         <section className="rounded-lg border bg-white p-4">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-base font-semibold">Produtos</h2>
-            {ui.kind === "loadingProducts" ? (
-              <span className="text-sm text-zinc-600">Carregando…</span>
+            {isLoadingProducts || isRefreshingProducts ? (
+              <span className="text-sm text-zinc-600">
+                {isLoadingProducts ? "Carregando…" : "Atualizando estoque…"}
+              </span>
             ) : null}
           </div>
+
+          {productsMessage ? (
+            <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm">
+              <div className="font-medium">{productsMessage.title}</div>
+              {productsMessage.description ? (
+                <div className="mt-1 text-zinc-700">
+                  {productsMessage.description}
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void refetchProducts()}
+                className="mt-3 rounded-md border bg-white px-3 py-1.5 text-sm font-medium hover:bg-zinc-50"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : null}
 
           <div className="mt-4 grid gap-3">
             {products.map((p) => {
@@ -245,7 +267,7 @@ export default function Home() {
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
-              disabled={disableSubmit || !selectedProductId}
+              disabled={disableSubmit || !selectedProductId || isProductsError}
               onClick={handleCheckout}
               className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
@@ -266,7 +288,7 @@ export default function Home() {
             </div>
           </div>
 
-          {message ? (
+          {checkoutMessage ? (
             <div
               className={[
                 "mt-4 rounded-md border px-3 py-3 text-sm",
@@ -275,13 +297,10 @@ export default function Home() {
                   : "border-amber-200 bg-amber-50",
               ].join(" ")}
             >
-              <div className="font-medium">{message.title}</div>
-              {message.description ? (
-                <div className="mt-1 text-zinc-700">{message.description}</div>
-              ) : null}
-              {"requestId" in message && (message as any).requestId ? (
-                <div className="mt-2 text-xs text-zinc-600">
-                  requestId: {(message as any).requestId}
+              <div className="font-medium">{checkoutMessage.title}</div>
+              {checkoutMessage.description ? (
+                <div className="mt-1 text-zinc-700">
+                  {checkoutMessage.description}
                 </div>
               ) : null}
             </div>

@@ -3,12 +3,10 @@ import type { ApiErrorBody } from './api';
 export function toHumanMessage(error: unknown): {
   title: string;
   description?: string;
-  requestId?: string;
   code?: string;
 } {
   const e = error as Partial<ApiErrorBody> | undefined;
   const code = typeof e?.code === 'string' ? e.code : undefined;
-  const requestId = typeof e?.requestId === 'string' ? e.requestId : undefined;
 
   if (code === 'INSUFFICIENT_STOCK') {
     const available =
@@ -23,7 +21,6 @@ export function toHumanMessage(error: unknown): {
         typeof available === 'number'
           ? `Disponível agora: ${available}.`
           : 'Não há unidades suficientes para completar a compra.',
-      requestId,
       code,
     };
   }
@@ -32,7 +29,6 @@ export function toHumanMessage(error: unknown): {
     return {
       title: 'Entrada inválida',
       description: 'Confira o produto e a quantidade informados.',
-      requestId,
       code,
     };
   }
@@ -41,7 +37,6 @@ export function toHumanMessage(error: unknown): {
     return {
       title: 'Falha temporária no processamento',
       description: 'O ERP está instável. Tente novamente em alguns segundos.',
-      requestId,
       code,
     };
   }
@@ -49,7 +44,6 @@ export function toHumanMessage(error: unknown): {
   return {
     title: 'Falha técnica',
     description: 'Algo deu errado. Tente novamente.',
-    requestId,
     code,
   };
 }

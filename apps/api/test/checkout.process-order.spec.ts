@@ -106,7 +106,7 @@ describe('CheckoutService.processPendingOrder', () => {
     const erp = { placeOrder: jest.fn() };
     const service = new CheckoutService(prisma as any, erp as any);
 
-    await expect(service.getOrder('missing')).resolves.toBeNull();
+    await expect(service.getOrder('missing', 'any-key')).resolves.toBeNull();
   });
 
   it('returns shaped order status from getOrder when found', async () => {
@@ -114,6 +114,7 @@ describe('CheckoutService.processPendingOrder', () => {
       order: {
         findUnique: jest.fn().mockResolvedValue({
           id: 'o1',
+          idempotencyKey: 'idem-1',
           status: OrderStatus.PENDING,
           failureCode: null,
           erpAttempts: 2,
@@ -123,7 +124,7 @@ describe('CheckoutService.processPendingOrder', () => {
     const erp = { placeOrder: jest.fn() };
     const service = new CheckoutService(prisma as any, erp as any);
 
-    await expect(service.getOrder('o1')).resolves.toEqual({
+    await expect(service.getOrder('o1', 'idem-1')).resolves.toEqual({
       orderId: 'o1',
       status: OrderStatus.PENDING,
       failureCode: null,

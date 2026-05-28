@@ -37,19 +37,29 @@ function createErpMock() {
 }
 
 describe('CheckoutService', () => {
-  it('rejects missing Idempotency-Key', async () => {
-    const { prisma } = createPrismaMock();
+  it('should generate idempotencyKey when header is missing', async () => {
+    const { prisma, tx } = createPrismaMock();
     const erp = createErpMock();
+
+    tx.order.findUnique.mockResolvedValue(null);
+    tx.product.findUnique.mockResolvedValue({ id: 'p1' });
+    tx.inventoryItem.updateMany.mockResolvedValue({ count: 1 });
+    tx.order.create.mockResolvedValue({
+      id: 'o1',
+      status: OrderStatus.PENDING,
+    });
 
     const service = new CheckoutService(prisma as any, erp as any);
 
-    await expect(
-      service.createCheckoutAttempt({
-        idempotencyKey: undefined,
-        productId: 'p1',
-        quantity: 1,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    const result = await service.createCheckoutAttempt({
+      idempotencyKey: undefined,
+      productId: 'p1',
+      quantity: 1,
+    });
+
+    expect(result.orderId).toBe('o1');
+    expect(result.idempotencyKey).toEqual(expect.any(String));
+    expect(result.idempotencyKey.length).toBeGreaterThan(0);
   });
 
   it('returns existing order for same idempotencyKey', async () => {
@@ -68,7 +78,11 @@ describe('CheckoutService', () => {
       quantity: 1,
     });
 
-    expect(result).toEqual({ orderId: 'o1', status: OrderStatus.PENDING });
+    expect(result).toEqual({
+      orderId: 'o1',
+      status: OrderStatus.PENDING,
+      idempotencyKey: 'idem-1',
+    });
     expect(tx.inventoryItem.updateMany).not.toHaveBeenCalled();
     expect(tx.order.create).not.toHaveBeenCalled();
   });
@@ -131,7 +145,11 @@ describe('CheckoutService', () => {
       quantity: 2,
     });
 
-    expect(result).toEqual({ orderId: 'o1', status: OrderStatus.PENDING });
+    expect(result).toEqual({
+      orderId: 'o1',
+      status: OrderStatus.PENDING,
+      idempotencyKey: 'idem-1',
+    });
     expect(tx.inventoryItem.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { productId: 'p1', available: { gte: 2 } },
@@ -165,6 +183,7 @@ describe('CheckoutService', () => {
     expect(result).toEqual({
       orderId: 'o-race',
       status: OrderStatus.PROCESSING,
+      idempotencyKey: 'idem-1',
     });
   });
 

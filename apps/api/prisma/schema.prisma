@@ -52,6 +52,8 @@ model Order {
   quantity       Int
   status         OrderStatus
   failureCode    OrderFailureCode?
+  erpAttempts    Int               @default(0)
+  lastError      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

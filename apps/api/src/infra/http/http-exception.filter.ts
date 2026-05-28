@@ -4,6 +4,7 @@ import {
   Catch,
   ConflictException,
   ExceptionFilter,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   NotFoundException,
@@ -39,6 +40,7 @@ export class HttpExceptionToApiErrorFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const requestId = request.requestId;
+    const isProd = process.env.NODE_ENV === 'production';
 
     // ValidationPipe throws BadRequestException with a structured response.
     if (exception instanceof BadRequestException) {
@@ -46,7 +48,7 @@ export class HttpExceptionToApiErrorFilter implements ExceptionFilter {
         code: 'VALIDATION_ERROR',
         message: 'Validation error',
         requestId,
-        details: exception.getResponse(),
+        details: isProd ? undefined : exception.getResponse(),
       };
 
       return response.status(HttpStatus.BAD_REQUEST).json(payload);
@@ -59,9 +61,18 @@ export class HttpExceptionToApiErrorFilter implements ExceptionFilter {
         code: overrides.code ?? 'TECHNICAL_FAILURE',
         message: overrides.message ?? 'Conflict',
         requestId,
-        details,
+        details: isProd ? undefined : details,
       };
       return response.status(HttpStatus.CONFLICT).json(payload);
+    }
+
+    if (exception instanceof ForbiddenException) {
+      const payload: ApiErrorBody = {
+        code: 'TECHNICAL_FAILURE',
+        message: 'Forbidden',
+        requestId,
+      };
+      return response.status(HttpStatus.FORBIDDEN).json(payload);
     }
 
     if (exception instanceof NotFoundException) {
@@ -80,7 +91,7 @@ export class HttpExceptionToApiErrorFilter implements ExceptionFilter {
         code: overrides.code ?? 'TECHNICAL_FAILURE',
         message: overrides.message ?? 'Service unavailable',
         requestId,
-        details,
+        details: isProd ? undefined : details,
       };
       return response.status(HttpStatus.SERVICE_UNAVAILABLE).json(payload);
     }
@@ -93,7 +104,7 @@ export class HttpExceptionToApiErrorFilter implements ExceptionFilter {
         code: 'TECHNICAL_FAILURE',
         message: 'Request failed',
         requestId,
-        details,
+        details: isProd ? undefined : details,
       };
 
       return response.status(status).json(payload);

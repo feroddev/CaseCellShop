@@ -3,6 +3,8 @@ import {
   ConflictException,
   Injectable,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { ForbiddenException } from '@nestjs/common';
 import { Prisma, OrderStatus } from '@prisma/client';
 import { PrismaService } from '@/infra/prisma/prisma.service';
 import { ErpClient, ErpTemporaryError } from '@/modules/erp/erp.client';
@@ -21,13 +23,7 @@ export class CheckoutService {
   ) {}
 
   async createCheckoutAttempt(input: CreateCheckoutAttemptInput) {
-    const idempotencyKey = input.idempotencyKey?.trim();
-    if (!idempotencyKey) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Missing Idempotency-Key header',
-      });
-    }
+    const idempotencyKey = input.idempotencyKey?.trim() || randomUUID();
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -35,7 +31,11 @@ export class CheckoutService {
           where: { idempotencyKey },
         });
         if (existing) {
-          return { orderId: existing.id, status: existing.status };
+          return {
+            orderId: existing.id,
+            status: existing.status,
+            idempotencyKey,
+          };
         }
 
         const product = await tx.product.findUnique({
@@ -79,7 +79,7 @@ export class CheckoutService {
           },
         });
 
-        return { orderId: order.id, status: order.status };
+        return { orderId: order.id, status: order.status, idempotencyKey };
       });
 
       return result;
@@ -91,18 +91,31 @@ export class CheckoutService {
             where: { idempotencyKey },
           });
           if (existing)
-            return { orderId: existing.id, status: existing.status };
+            return {
+              orderId: existing.id,
+              status: existing.status,
+              idempotencyKey,
+            };
         }
       }
       throw err;
     }
   }
 
-  async getOrder(orderId: string) {
+  async getOrder(orderId: string, idempotencyKey: string | undefined) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
     });
     if (!order) return null;
+
+    const key = idempotencyKey?.trim();
+    if (!key || key !== order.idempotencyKey) {
+      // Prevent orderId enumeration since the project has no auth.
+      throw new ForbiddenException({
+        code: 'TECHNICAL_FAILURE',
+        message: 'Forbidden',
+      });
+    }
 
     return {
       orderId: order.id,

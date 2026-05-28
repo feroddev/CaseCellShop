@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Headers,
-  NotFoundException,
-  Param,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Get, Headers, NotFoundException, Param, Post } from '@nestjs/common';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { CheckoutService } from './checkout.service';
 
@@ -27,8 +19,11 @@ export class CheckoutController {
   }
 
   @Get('/orders/:id')
-  async getOrderStatus(@Param('id') orderId: string) {
-    const order = await this.checkoutService.getOrder(orderId);
+  async getOrderStatus(
+    @Param('id') orderId: string,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+  ) {
+    const order = await this.checkoutService.getOrder(orderId, idempotencyKey);
     if (!order) throw new NotFoundException({ code: 'NOT_FOUND' });
     return order;
   }

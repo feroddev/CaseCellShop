@@ -1,0 +1,61 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id         String @id
+  name       String
+  priceCents Int
+
+  inventory InventoryItem?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model InventoryItem {
+  productId String @id
+  available Int
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  FAILED
+}
+
+enum OrderFailureCode {
+  VALIDATION_ERROR
+  INSUFFICIENT_STOCK
+  ERP_TEMPORARY
+  ERP_PERMANENT
+  TECHNICAL_FAILURE
+}
+
+model Order {
+  id             String            @id @default(uuid())
+  idempotencyKey String            @unique
+  productId      String
+  quantity       Int
+  status         OrderStatus
+  failureCode    OrderFailureCode?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([productId])
+}

@@ -1,0 +1,66 @@
+# Development stack with hot reload (source mounted as volumes).
+# Usage: docker compose -f docker-compose.dev.yml up --build
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: casecellshop-postgres-dev
+    environment:
+      POSTGRES_USER: casecellshop
+      POSTGRES_PASSWORD: casecellshop
+      POSTGRES_DB: casecellshop
+    ports:
+      - "5432:5432"
+    volumes:
+      - casecellshop-postgres-dev-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U casecellshop -d casecellshop"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.dev
+    container_name: casecellshop-api-dev
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://casecellshop:casecellshop@postgres:5432/casecellshop?schema=public
+      ERP_MIN_DELAY_MS: 800
+      ERP_MAX_DELAY_MS: 2500
+      ERP_FAILURE_RATE: 0.3
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/api:/app
+      - api_node_modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.dev
+    container_name: casecellshop-web-dev
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3000
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./apps/web:/app
+      - web_node_modules:/app/node_modules
+    depends_on:
+      - api
+
+volumes:
+  casecellshop-postgres-dev-data:
+  api_node_modules:
+  web_node_modules:

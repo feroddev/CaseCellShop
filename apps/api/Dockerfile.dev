@@ -1,0 +1,21 @@
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update -y \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY apps/api/package.json apps/api/package-lock.json ./
+RUN npm ci
+
+COPY apps/api/docker-entrypoint.dev.sh /usr/local/bin/docker-entrypoint.dev.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.dev.sh \
+  && chmod +x /usr/local/bin/docker-entrypoint.dev.sh
+
+ENV NODE_ENV=development
+ENV PORT=3000
+
+EXPOSE 3000
+
+ENTRYPOINT ["sh", "/usr/local/bin/docker-entrypoint.dev.sh"]

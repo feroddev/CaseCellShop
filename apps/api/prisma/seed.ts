@@ -4,8 +4,18 @@ async function main() {
   const prisma = new PrismaClient();
 
   const products = [
-    { id: 'case-iphone-15', name: 'Case iPhone 15', priceCents: 7990, stock: 5 },
-    { id: 'case-galaxy-s24', name: 'Case Galaxy S24', priceCents: 6990, stock: 3 },
+    {
+      id: 'case-iphone-15',
+      name: 'Case iPhone 15',
+      priceCents: 7990,
+      stock: 5,
+    },
+    {
+      id: 'case-galaxy-s24',
+      name: 'Case Galaxy S24',
+      priceCents: 6990,
+      stock: 3,
+    },
     { id: 'case-pixel-9', name: 'Case Pixel 9', priceCents: 7490, stock: 2 },
   ];
 
@@ -27,8 +37,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  // eslint-disable-next-line no-console
   console.error(e);
   process.exit(1);
 });
-

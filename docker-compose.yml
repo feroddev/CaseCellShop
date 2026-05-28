@@ -17,6 +17,7 @@ services:
       retries: 20
 
   api:
+    image: casecellshop-api:prod
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -45,6 +46,7 @@ services:
       start_period: 30s
 
   web:
+    image: casecellshop-web:prod
     build:
       context: .
       dockerfile: apps/web/Dockerfile

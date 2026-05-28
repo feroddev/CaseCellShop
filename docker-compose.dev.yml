@@ -20,6 +20,7 @@ services:
       retries: 20
 
   api:
+    image: casecellshop-api:dev
     build:
       context: .
       dockerfile: apps/api/Dockerfile.dev
@@ -43,6 +44,7 @@ services:
         condition: service_healthy
 
   web:
+    image: casecellshop-web:dev
     build:
       context: .
       dockerfile: apps/web/Dockerfile.dev

@@ -66,17 +66,38 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "rootDir": ".",
+    "testMatch": [
+      "<rootDir>/src/**/*.spec.ts",
+      "<rootDir>/test/**/*.spec.ts"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1"
+      "^@/(.*)$": "<rootDir>/src/$1"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s",
+      "!src/main.ts",
+      "!src/**/*.controller.ts",
+      "!src/**/*.module.ts",
+      "!src/**/*.dto.ts",
+      "!src/**/dto/**/*.(t|j)s",
+      "!src/**/*.spec.ts",
+      "!src/app.module.ts",
+      "!src/app.service.ts",
+      "!src/infra/prisma/prisma.service.ts",
+      "!src/modules/checkout/checkout.worker.ts"
     ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 85,
+        "branches": 85,
+        "functions": 85,
+        "lines": 85
+      }
+    },
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   }
